@@ -22,9 +22,10 @@ import {
   SURVEY_FIRST_MS,
   SWORD_HOTBAR,
   TaskPriority,
-  homeList,
+  homesFor,
   type FarmSpot,
 } from "../config.ts";
+import { noteRouteDry } from "./quest.ts";
 
 type HuntPhase = "home" | "arrive" | "hunt";
 
@@ -48,13 +49,17 @@ export class HuntTask extends Task {
   private nextYLogAt = 0;
   private stillAt: Vec3 | null = null;
   private stillSince = 0;
+  /** 这一轮已经去过、而且没有怪的家。 */
+  private dryHomes = new Set<string>();
+  private farmKey = "";
+  private homeName = "";
 
   constructor() {
     super("hunt", TaskPriority.hunt);
   }
 
   shouldRun(context: HunterContext): boolean {
-    return canDoFieldWork(context) && homeList.length > 0;
+    return canDoFieldWork(context) && homesFor(context.questName, context.routeIndex, context.farmName).length > 0;
   }
 
   start(): void {
@@ -74,11 +79,25 @@ export class HuntTask extends Task {
   }
 
   tick(context: HunterContext): string {
-    const spot = homeList[this.spotIndex % homeList.length];
+    if (context.farmName && context.revisitQuestAt > 0 && Date.now() >= context.revisitQuestAt) {
+      context.farmName = "";
+      context.revisitQuestAt = 0;
+      Chat.log(`[hunter] 回去看看 ${context.questName || "当前任务"}`);
+    }
+    const farmed = context.farmName || context.questName;
+    if (this.farmKey !== farmed) {
+      this.farmKey = farmed;
+      this.spotIndex = 0;
+      this.dryHomes.clear();
+      this.phase = "home";
+      stopPathing();
+    }
+    const homes = homesFor(context.questName, context.routeIndex, context.farmName);
+    const spot = homes[this.spotIndex % homes.length];
     if (!spot) return TaskResult.RUNNING;
     if (this.phase === "home") return this.goHome(context, spot);
     if (this.phase === "arrive") return this.waitArrival();
-    return this.hunt(spot);
+    return this.hunt(context, spot, homes);
   }
 
   private restart(): void {
@@ -100,10 +119,12 @@ export class HuntTask extends Task {
     this.nextYLogAt = 0;
     this.stillAt = null;
     this.stillSince = 0;
+    this.dryHomes.clear();
   }
 
   private goHome(context: HunterContext, spot: FarmSpot): string {
     if (!tryUseHome(context, spot.home)) return TaskResult.RUNNING;
+    this.homeName = spot.home;
     this.depart = playerPosition();
     this.departAt = Date.now();
     this.phase = "arrive";
@@ -114,9 +135,7 @@ export class HuntTask extends Task {
     const progress = teleportProgress(this.depart, this.departAt);
     if (progress === "moving") return TaskResult.RUNNING;
     if (progress === "missed") {
-      this.phase = "home";
-      log("传送没有生效，重新传送");
-      return TaskResult.RUNNING;
+      Chat.log(`[hunter] 已经在 ${this.homeName}，开始找怪`);
     }
     this.anchor = playerPosition();
     this.phase = "hunt";
@@ -143,7 +162,7 @@ export class HuntTask extends Task {
     return TaskResult.RUNNING;
   }
 
-  private hunt(spot: FarmSpot): string {
+  private hunt(context: HunterContext, spot: FarmSpot, homes: FarmSpot[]): string {
     beginScan();
     const player = Player.getPlayer();
     const pos = playerPosition();
@@ -160,7 +179,7 @@ export class HuntTask extends Task {
       return TaskResult.RUNNING;
     }
 
-    if (this.stuckTooLong(pos, spot)) return TaskResult.RUNNING;
+    if (this.stuckTooLong(pos, spot, homes)) return TaskResult.RUNNING;
     if (this.chaseLoot(player, pos, spot.searchRadius)) return TaskResult.RUNNING;
     this.logHighMobs(pos, spot.searchRadius, namedTargets(spot));
 
@@ -194,10 +213,10 @@ export class HuntTask extends Task {
       this.following = false;
       this.followedId = "";
       if (Date.now() < this.giveUpAt) return TaskResult.RUNNING;
-      this.nextSpot();
-      log(`${spot.home} 没有可打的怪，去 ${homeList[this.spotIndex]?.home ?? ""}`);
+      this.markDry(context, spot, homes);
       return TaskResult.RUNNING;
     }
+    this.dryHomes.clear();
 
     this.giveUpAt = Date.now() + 8_000;
     const info = entityLabel(target);
@@ -214,16 +233,16 @@ export class HuntTask extends Task {
     return TaskResult.RUNNING;
   }
 
-  private stuckTooLong(pos: Vec3, spot: FarmSpot): boolean {
+  private stuckTooLong(pos: Vec3, spot: FarmSpot, homes: FarmSpot[]): boolean {
     if (!this.following || !this.stillAt || distance(this.stillAt, pos) >= STUCK_DISTANCE) {
       this.stillAt = pos;
       this.stillSince = Date.now();
       return false;
     }
     if (Date.now() - this.stillSince < STUCK_MS) return false;
-    const next = homeList.length > 1 ? homeList[(this.spotIndex + 1) % homeList.length]?.home : spot.home;
+    const next = homes.length > 1 ? homes[(this.spotIndex + 1) % homes.length]?.home : spot.home;
     log(`${spot.home} 原地超过 ${STUCK_MS / 1000} 秒，寻路卡住，去 ${next ?? ""}`);
-    this.nextSpot();
+    this.nextSpot(homes);
     return true;
   }
 
@@ -306,9 +325,20 @@ export class HuntTask extends Task {
     log(message);
   }
 
-  private nextSpot(): void {
+  private markDry(context: HunterContext, spot: FarmSpot, homes: FarmSpot[]): void {
+    this.dryHomes.add(spot.home);
+    const covered = homes.every((item) => this.dryHomes.has(item.home));
+    this.nextSpot(homes);
+    const next = homes[this.spotIndex % homes.length]?.home ?? "";
+    log(`${spot.home} 没有可打的怪，去 ${next}`);
+    if (!covered) return;
+    this.dryHomes.clear();
+    noteRouteDry(context, context.farmName || context.questName || "");
+  }
+
+  private nextSpot(homes: FarmSpot[]): void {
     stopPathing();
-    if (homeList.length > 1) this.spotIndex = (this.spotIndex + 1) % homeList.length;
+    if (homes.length > 1) this.spotIndex = (this.spotIndex + 1) % homes.length;
     this.phase = "home";
     this.following = false;
     this.followedId = "";

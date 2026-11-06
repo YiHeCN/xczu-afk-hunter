@@ -80,6 +80,7 @@ export function clearCoinStatus(): void {
 }
 
 function coinStatus(context: HunterContext, now: number): string {
+  if (context.abandonQuest) return "没怪了，换任务";
   if (context.questTurnInReady) return "去交付任务";
   if (context.clearForQuest || context.questComplete) return "任务已完成，回家清包";
   const quest =

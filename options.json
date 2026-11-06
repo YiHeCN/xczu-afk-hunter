@@ -22,13 +22,13 @@
           "triggerType": "KEY_RISING",
           "event": "key.keyboard.minus",
           "scriptFile": "hunter-agent/bundle.js",
-          "enabled": false,
+          "enabled": true,
           "joined": false
         },
         {
           "triggerType": "KEY_RISING",
           "event": "key.keyboard.equal",
-          "scriptFile": "slime-fun/unlock-research.ts",
+          "scriptFile": "test.ts",
           "enabled": true,
           "joined": false
         }

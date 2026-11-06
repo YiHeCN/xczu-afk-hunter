@@ -71,7 +71,7 @@ export function isSelfJoin(text: string): boolean {
 export function isAuthLoginPrompt(text: string): boolean {
   const plain = plainText(text);
   if (!plain || isLoginSuccess(plain)) return false;
-  const password = authLoginCommand.split(" ")[1] ?? "";
+  const password = authLoginCommand().split(" ")[1] ?? "";
   if (plain.trim().startsWith("/login") || (password !== "" && plain.includes(password)))
     return false;
   return plain.includes("/login") || plain.includes("请登录") || plain.includes("请输入密码");

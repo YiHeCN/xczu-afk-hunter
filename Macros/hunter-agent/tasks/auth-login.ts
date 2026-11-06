@@ -32,9 +32,10 @@ export class AuthLoginTask extends Task {
       return TaskResult.RUNNING;
     }
     if (!this.sent) {
+      const command = authLoginCommand();
       const sent = consumeSentCommand();
-      if (sent === authLoginCommand) {
-        log(`已发送 ${authLoginCommand}`);
+      if (sent === command) {
+        log(`已发送 ${command}`);
         this.sent = true;
         this.sentAt = Date.now();
         return TaskResult.RUNNING;
@@ -42,7 +43,7 @@ export class AuthLoginTask extends Task {
       if (!this.queued) {
         stopPathing();
         closeContainer();
-        sayCommand(authLoginCommand);
+        sayCommand(command);
         this.queued = true;
       }
       return TaskResult.RUNNING;

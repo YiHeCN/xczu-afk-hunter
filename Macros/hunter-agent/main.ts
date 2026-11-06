@@ -1,6 +1,7 @@
 import { Scheduler } from "../util/scheduler.ts";
 import {
   canDoFieldWork,
+  avoidFenceGates,
   claimHunter,
   closeContainer,
   createContext,
@@ -17,12 +18,14 @@ import {
   type HunterContext,
 } from "./actions.ts";
 import { clearCoinStatus, finishMoneyWait, noteMoneyChat, noteUpgradeSpend, requestMoney, showCoinStatus } from "./coins.ts";
+import { PUBLIC_PAUSE_MS, PUBLIC_PAUSE_TEXT, authLoginCommand } from "./config.ts";
 import {
   isAuthLoginPrompt,
   isInLoginServer,
   isLoginSuccess,
   isSelfJoin,
   nextHomeReadyAt,
+  plainText,
   serverStatus,
 } from "./login.ts";
 import { AuthLoginTask } from "./tasks/auth-login.ts";
@@ -52,6 +55,10 @@ const listener = JsMacros.on(
   "RecvMessage",
   JavaWrapper.methodToJava((event: Events.RecvMessage) => {
     const text = event.text?.getString() ?? "";
+    if (plainText(text).includes(PUBLIC_PAUSE_TEXT)) {
+      context.pauseUntil = Date.now() + PUBLIC_PAUSE_MS;
+      Chat.log("[hunter] 收到停止挂机，暂停 30 分钟");
+    }
     if (noteCommandBan(text)) return;
     if (isSelfJoin(text)) noteServerJoin();
     const readyAt = nextHomeReadyAt(text, context.homeReadyAt);
@@ -89,8 +96,10 @@ const runId = claimHunter();
 
 clearCoinStatus();
 closeContainer();
+if (authLoginCommand() === "/login") Chat.log("[hunter] 没有读到 .env 里的 LOGIN_PASSWORD");
 log("自动打怪已启动");
 log(serverStatus());
+avoidFenceGates();
 scheduler.start();
 
 let lastTask = "";
@@ -106,6 +115,13 @@ try {
     const online = !!Player.getPlayer();
     if (online && !sawPlayer) noteServerJoin();
     sawPlayer = online;
+    if (Date.now() < context.pauseUntil) {
+      KeyBind.keyBind("key.use", false);
+      KeyBind.keyBind("key.forward", false);
+      stopPathing();
+      Client.waitTick();
+      continue;
+    }
     if (playerMenuOpen()) {
       KeyBind.keyBind("key.use", false);
       KeyBind.keyBind("key.forward", false);

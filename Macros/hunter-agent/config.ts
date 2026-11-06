@@ -19,8 +19,22 @@ export const LOW_FOOD = 6;
 /** 血量或饥饿低于阈值后执行。旧脚本用的是 /suicide。 */
 export const suicideCommand = "/suicide";
 
-/** 主服聊天要求登录时发送。登录服上不发。 */
-export const authLoginCommand = "/login 123666";
+/** 公屏出现这句话就暂停挂机。 */
+export const PUBLIC_PAUSE_TEXT = "停止挂机";
+export const PUBLIC_PAUSE_MS = 30 * 60_000;
+
+type EnvBag = { HUNTER_ENV?: Record<string, string> };
+
+function envValue(key: string): string {
+  const bag = (globalThis as EnvBag).HUNTER_ENV;
+  return bag?.[key]?.trim() ?? "";
+}
+
+/** 主服聊天要求登录时发送。密码来自仓库根目录的 .env，登录服上不发。 */
+export function authLoginCommand(): string {
+  const password = envValue("LOGIN_PASSWORD");
+  return password === "" ? "/login" : `/login ${password}`;
+}
 
 export const HOME_COOLDOWN_MS = 10_000;
 /** 两条斜杠命令至少隔这么久，避免被判定发送过快。 */
@@ -61,12 +75,10 @@ export const baseHome = "1";
 export const QUEST_NPC_COMMAND = "/em quest npc RenWu.yml";
 /** 任务列表界面标题。 */
 export const QUEST_LIST_TITLE = "Quests";
-/** 还没接的时候点这一格。第一格是 0。 */
-export const QUEST_ACCEPT_SLOT = 10;
-/** 接取之后，进行中的任务会挪到这一格，交付点这里。 */
+/** 接取之后，进行中的任务会挪到第 2 格（下标 1）。放弃和交付都点这里。 */
 export const QUEST_TURNIN_SLOT = 1;
-/** 打开列表时这一格已经是该任务，就说明接过了，不要再点接取。 */
-export const ACTIVE_QUEST_NAME = "北极的危机";
+/** 还没接的是绿色玻璃板。已经接上的会挪到最前，颜色不是绿色，红、橙都见过。 */
+export const OPEN_QUEST_ITEM = "green_stained_glass_pane";
 /** 进入任务详情后的确认格。接取和交付都点这里。 */
 export const QUEST_CONFIRM_SLOT = 26;
 
@@ -91,6 +103,22 @@ export const TERMINAL_SYNC_MS = 5_000;
 /** 这些显示名留在身上，不卖也不存。 */
 export const keepItemNames = ["· 始源之遗 ·", "无线终端"];
 
+/** 副本栅栏门开不了。告诉 Baritone 避开，免得一直右键卡住。 */
+export const fenceGates = [
+  "oak_fence_gate",
+  "spruce_fence_gate",
+  "birch_fence_gate",
+  "jungle_fence_gate",
+  "acacia_fence_gate",
+  "dark_oak_fence_gate",
+  "mangrove_fence_gate",
+  "cherry_fence_gate",
+  "bamboo_fence_gate",
+  "crimson_fence_gate",
+  "warped_fence_gate",
+  "pale_oak_fence_gate",
+];
+
 export type FarmSpot = {
   /** `/home` 的家名称 */
   home: string;
@@ -100,13 +128,52 @@ export type FarmSpot = {
   searchRadius: number;
 };
 
+export type QuestRoute = {
+  /** 和任务界面上的名字一致。接取后这张会挪到红色玻璃板，后面的任务往前挤，格子号会变。 */
+  name: string;
+  /** 这张任务进行时只在这些家之间转。另一层就再加一个家。 */
+  homes: FarmSpot[];
+};
+
 /**
- * 刷怪点列表。脚本会传送到当前点，找符合 targets 的怪物，
- * 再用 Baritone 走过去，近身后贴到怪身上吃荆棘反伤。
+ * 这一轮家都没怪，而且进度还没到这个比例，就放弃并换下一张。
+ * 放弃和交付是同一套点击。
  */
-export const homeList: FarmSpot[] = [
-  { home: "p3", targets: [], searchRadius: 48 },
-  { home: "bj1", targets: [], searchRadius: 48 },
-  { home: "bj2", targets: [], searchRadius: 48 },
-  { home: "bj3", targets: [], searchRadius: 48 },
+export const QUEST_HOLD_PROGRESS = 0.8;
+
+const floor = (home: string): FarmSpot => ({ home, targets: [], searchRadius: 48 });
+
+export const questRoutes: QuestRoute[] = [
+  {
+    name: "北极的危机",
+    homes: [floor("bj1"), floor("bj2"), floor("bj3")],
+  },
+  {
+    name: "猴子王国的入侵者",
+    homes: [floor("mk1"), floor("mk2"), floor("mk3")],
+  },
+  {
+    name: "恶魔之影",
+    homes: [floor("em")],
+  },
+  {
+    name: "古殿幽灵之战",
+    homes: [floor("dlh")],
+  },
+  // {
+  //   name: "另一张任务的全名",
+  //   homes: [floor("p3")],
+  // },
 ];
+
+export function routeAt(index: number): QuestRoute {
+  const count = questRoutes.length;
+  return questRoutes[((index % count) + count) % count];
+}
+
+/** 临时改去刷的任务优先。否则跟着当前任务，认不出名字时用序号。 */
+export function homesFor(questName: string, routeIndex: number, farmName = ""): FarmSpot[] {
+  const chosen = farmName || questName;
+  const named = questRoutes.find((route) => chosen.includes(route.name));
+  return (named ?? routeAt(routeIndex)).homes;
+}

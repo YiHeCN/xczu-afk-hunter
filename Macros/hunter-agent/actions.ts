@@ -9,6 +9,7 @@ import {
   LOW_FOOD,
   LOW_HEALTH,
   TELEPORT_DISTANCE,
+  fenceGates,
 } from "./config.ts";
 import { isInLoginServer, plainText } from "./login.ts";
 
@@ -16,6 +17,8 @@ export type Vec3 = { x: number; y: number; z: number };
 
 export type HunterContext = {
   needsAuthLogin: boolean;
+  /** 公屏要求停止挂机时，在这个时间之前什么都不做。 */
+  pauseUntil: number;
   homeReadyAt: number;
   startedAt: number;
   /** 脚本开始时第一次读到的精英币。 */
@@ -35,12 +38,24 @@ export type HunterContext = {
   upgradeHoldUntil: number;
   /** 已经接了任务。进行中也可以升级，交接时再让路。 */
   questActive: boolean;
+  /** 当前任务名字。用来决定去哪些家。 */
+  questName: string;
+  /** questRoutes 里的序号。交付后加一，接下一张。 */
+  routeIndex: number;
+  /** 慢本没怪时临时去刷的任务。空字符串表示就在当前任务的家里。 */
+  farmName: string;
+  /** 到这个时间回当前任务的家看一眼。0 表示不用回去。 */
+  revisitQuestAt: number;
   /** 聊天进度已经打满，等清包或交付。 */
   questComplete: boolean;
   /** 先回家把包清空，不然任务奖励领不到。 */
   clearForQuest: boolean;
   /** 包已经空出来，可以去交付。 */
   questTurnInReady: boolean;
+  /** 这轮家没怪，用和交付一样的操作放弃，再接下一个。 */
+  abandonQuest: boolean;
+  /** 任务界面正在自己处理交付或接取，完成消息不要再打断一次。 */
+  questMenuBusy: boolean;
   /** 最近一次聊天里的任务进度。还没看到时是 -1。 */
   questProgress: number;
   questTotal: number;
@@ -145,6 +160,11 @@ function isLimitedCommand(command: string): boolean {
   return LIMITED_COMMANDS.some((prefix) => command === prefix || command.startsWith(`${prefix} `));
 }
 
+/** 栅栏门在 blocksToAvoid 里时，Baritone 会绕开，不再尝试打开。 */
+export function avoidFenceGates(): void {
+  sayCommand(`#set blocksToAvoid ${fenceGates.join(",")}`);
+}
+
 /** `#goto`、`#stop` 只给本地 Baritone，立刻发。斜杠命令排队，避免踢出。 */
 export function sayCommand(command: string): void {
   if (!isLimitedCommand(command)) {
@@ -227,6 +247,7 @@ export function flushCommands(): void {
 export function createContext(): HunterContext {
   return {
     needsAuthLogin: false,
+    pauseUntil: 0,
     homeReadyAt: 0,
     startedAt: Date.now(),
     baselineWallet: null,
@@ -238,9 +259,15 @@ export function createContext(): HunterContext {
     upgradeReady: false,
     upgradeHoldUntil: 0,
     questActive: false,
+    questName: "",
+    routeIndex: 0,
+    farmName: "",
+    revisitQuestAt: 0,
     questComplete: false,
     clearForQuest: false,
     questTurnInReady: false,
+    abandonQuest: false,
+    questMenuBusy: false,
     questProgress: -1,
     questTotal: 0,
     questSawPartial: false,
@@ -257,7 +284,7 @@ export function createContext(): HunterContext {
 
 /** 任务交付和清包时先不升级。任务进行中钱够了就升。 */
 export function upgradePaused(context: HunterContext): boolean {
-  return context.questComplete || context.clearForQuest || context.questTurnInReady;
+  return context.questComplete || context.clearForQuest || context.questTurnInReady || context.abandonQuest;
 }
 
 export function canDoFieldWork(context: HunterContext): boolean {
