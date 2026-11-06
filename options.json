@@ -1,0 +1,57 @@
+{
+  "version": 4,
+  "core": {
+    "maxLockTime": 500,
+    "defaultProfile": "default",
+    "anythingIgnored": [
+      "Sound",
+      "Tick",
+      "RecvPacket",
+      "SendPacket"
+    ],
+    "profiles": {
+      "default": [
+        {
+          "triggerType": "EVENT",
+          "event": "ProfileLoad",
+          "scriptFile": "index.ts",
+          "enabled": false,
+          "joined": false
+        },
+        {
+          "triggerType": "KEY_RISING",
+          "event": "key.keyboard.minus",
+          "scriptFile": "hunter-agent/bundle.js",
+          "enabled": false,
+          "joined": false
+        },
+        {
+          "triggerType": "KEY_RISING",
+          "event": "key.keyboard.equal",
+          "scriptFile": "slime-fun/unlock-research.ts",
+          "enabled": true,
+          "joined": false
+        }
+      ]
+    },
+    "services": {}
+  },
+  "graal": {
+    "extraEngineOptions": {},
+    "extraLangOptions": {}
+  },
+  "com/jsmacrosce/jsmacros/client": {
+    "sortMethod": "TriggerName",
+    "sortServicesMethod": "FileName",
+    "showSlotIndexes": false,
+    "disableKeyWhenScreenOpen": true,
+    "editorLinterOverrides": {},
+    "editorHistorySize": 20,
+    "editorSuggestions": true,
+    "editorFont": "jsmacrosce:monocraft",
+    "externalEditor": false,
+    "externalEditorCommand": "code %MacroFolder %File",
+    "showRunningServices": true,
+    "serviceAutoReload": false
+  }
+}

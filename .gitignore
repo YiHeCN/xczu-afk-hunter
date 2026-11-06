@@ -1,0 +1,6 @@
+.backup/
+.vscode/
+Extensions/
+node_modules/
+.jsm_types/
+.DS_Store

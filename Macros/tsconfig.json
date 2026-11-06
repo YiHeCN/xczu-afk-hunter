@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "checkJs": true,
+    "noEmit": true,
+    "lib": ["ES2023"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true
+  },
+  "include": [".jsm_types/**/*.d.ts", "**/*.ts", "**/*.js"],
+  "exclude": ["node_modules", "hunter-agent/bundle.js"]
+}

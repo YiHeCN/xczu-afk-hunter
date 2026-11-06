@@ -1,0 +1,12 @@
+{
+    "name": "macros",
+    "version": "1.0.0",
+    "description": "macros",
+    "main": "index.ts",
+    "author": "mofeng",
+    "license": "MIT",
+    "devDependencies": {
+        "oxfmt": "latest",
+        "oxlint": "latest"
+    }
+}

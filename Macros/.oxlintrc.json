@@ -1,0 +1,50 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "rules": {
+    "eslint/no-await-in-loop": "off",
+    "to-array-sort": "off",
+    "eslint/no-unused-vars": "off"
+  },
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.matrix-data/**",
+    "**/.pnpm-store/**",
+    "**/fixtures/**",
+    "apps/web/src/components/ui/**",
+    "**/plugins/*/dist/**"
+  ],
+  "overrides": [
+    {
+      "files": ["apps/web/**/*.{ts,tsx}"],
+      "plugins": ["typescript", "unicorn", "oxc", "react"],
+      "env": {
+        "builtin": true,
+        "browser": true
+      }
+    },
+    {
+      "files": ["**/*.{test,spec}.{ts,tsx}"],
+      "plugins": ["typescript", "unicorn", "oxc", "vitest"],
+      "env": {
+        "builtin": true
+      }
+    },
+    {
+      "files": ["packages/**/*.{ts,tsx}", "plugins/**/*.{ts,tsx}", "apps/web/vite.config.ts"],
+      "env": {
+        "builtin": true,
+        "node": true
+      }
+    }
+  ]
+}
